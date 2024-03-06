@@ -3,7 +3,7 @@ use std::env::var;
 use libsql::{params, Connection, Database};
 
 fn establish_connection() -> Connection {
-    let db_url = var("TURSO_DABASE_URL").unwrap();
+    let db_url = var("DATABASE").unwrap();
     let auth_token = var("TURSO_AUTH_TOKEN").unwrap();
     let db = Database::open_remote(db_url, auth_token).expect("Failed to open remote turso db");
     db.connect().expect("Connection_failed")
