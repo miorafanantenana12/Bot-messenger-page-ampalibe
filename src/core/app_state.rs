@@ -5,8 +5,8 @@ pub struct AppState {
 }
 
 impl AppState {
-    pub async fn init() -> Self {
-        let query: Query = Query::new().await;
+    pub fn init() -> Self {
+        let query: Query = Query::new();
         Self { query }
     }
 }
