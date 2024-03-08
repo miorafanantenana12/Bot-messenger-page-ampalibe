@@ -129,7 +129,7 @@ pub async fn run_server() {
 
     rocket::custom(figment)
         .attach(cors)
-        .manage(AppState::init().await)
+        .manage(AppState::init())
         .mount("/", routes![webhook_verify, webhook_core])
         .mount("/static", FileServer::from("static"))
         .register("/", catchers![page_not_found, server_panic])
@@ -139,7 +139,7 @@ pub async fn run_server() {
 }
 
 pub async fn migrate() {
-    let query = Query::new().await;
+    let query = Query::new();
     println!("Connection successful!");
     let migration_result = match query.migrate().await {
         true => "Migration successful!",

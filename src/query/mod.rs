@@ -1,56 +1,23 @@
-use core::panic;
 use std::env::var;
 
-use sqlx::{MySql, Pool, Postgres, Row, Sqlite};
+use libsql::{params, Connection, Database};
 
-use crate::Action;
-
-#[derive(Clone)]
-pub enum DB {
-    Mysql(Pool<MySql>),
-    Postgres(Pool<Postgres>),
-    Sqlite(Pool<Sqlite>),
-    Null,
-}
-
-type DbResult<T> = Result<T, Box<dyn std::error::Error>>;
-
-async fn establish_connection() -> DbResult<DB> {
-    let database_url = var("DATABASE").expect("Database name not found in .env file");
-    let msg = "Database connection failed";
-
-    let engine = database_url.split(':').next().ok_or(msg)?;
-
-    let pool = match engine {
-        "mysql" => Pool::connect(&database_url).await.map(DB::Mysql)?,
-        "postgres" | "postgresql" => Pool::connect(&database_url).await.map(DB::Postgres)?,
-        "sqlite" => Pool::connect(&database_url).await.map(DB::Sqlite)?,
-        _ => DB::Null,
-    };
-
-    Ok(pool)
-}
-
-macro_rules! execute_query {
-    ($pool:expr, $sql:expr, $params:expr) => {{
-        let mut query = sqlx::query($sql);
-        for parm in $params {
-            query = query.bind(parm);
-        }
-        query.execute($pool).await.is_ok()
-    }};
+fn establish_connection() -> Connection {
+    let db_url = var("DATABASE").unwrap();
+    let auth_token = var("TURSO_AUTH_TOKEN").unwrap();
+    let db = Database::open_remote(db_url, auth_token).expect("Failed to open remote turso db");
+    db.connect().expect("Connection_failed")
 }
 
 #[derive(Clone)]
 pub struct Query {
-    pub db: DB,
+    pub conn: Connection,
 }
 
 impl Query {
-    pub async fn new() -> Self {
-        match establish_connection().await {
-            Ok(db) => return Self { db },
-            Err(err) => panic!("Can't estabilish the connection {err:?}"),
+    pub fn new() -> Self {
+        Self {
+            conn: establish_connection(),
         }
     }
 
@@ -60,78 +27,41 @@ impl Query {
                 facebook_user_id varchar(40) primary key unique,
                 action varchar(20)
             );";
-
-        let no_params = Vec::<&str>::new();
-        match &self.db {
-            DB::Mysql(pool) => execute_query!(pool, sql, no_params),
-            DB::Sqlite(pool) => execute_query!(pool, sql, no_params),
-            DB::Postgres(pool) => execute_query!(pool, sql, no_params),
-            DB::Null => false,
+        if let Err(err) = self.conn.execute(sql, ()).await {
+            eprintln!("Error on create table: {err}");
+            false
+        } else {
+            true
         }
     }
 
     pub async fn create(&self, user_id: &str) -> bool {
-        let params = [user_id, "Main"];
-        match &self.db {
-            DB::Mysql(pool) => {
-                let sql = "insert into russenger_user (facebook_user_id, action) values (?, ?)";
-                execute_query!(pool, sql, params)
-            }
-            DB::Sqlite(pool) => {
-                let sql = "insert into russenger_user (facebook_user_id, action) values ($1, $2)";
-                execute_query!(pool, sql, params)
-            }
-            DB::Postgres(pool) => {
-                let sql = "insert into russenger_user (facebook_user_id, action) values ($1, $2)";
-                execute_query!(pool, sql, [user_id, "Main"])
-            }
-            DB::Null => false,
-        }
+        let sql = "insert into russenger_user (facebook_user_id, action) values (?1, ?2)";
+        self.conn
+            .execute(sql, params![user_id, "Main"])
+            .await
+            .is_ok()
     }
 
-    pub async fn set_action<A: Action>(&self, user_id: &str, action: A) -> bool {
-        let params = [action.path(), user_id.to_string()];
-        match &self.db {
-            DB::Mysql(pool) => {
-                let sql = "update russenger_user set action=? where facebook_user_id=?";
-                execute_query!(pool, sql, params)
-            }
-            DB::Sqlite(pool) => {
-                let sql = "update russenger_user set action=$1 where facebook_user_id=$2";
-                execute_query!(pool, sql, params)
-            }
-            DB::Postgres(pool) => {
-                let sql = "update russenger_user set action=$1 where facebook_user_id=$2";
-                execute_query!(pool, sql, params)
-            }
-            DB::Null => false,
-        }
+    pub async fn set_action(&self, user_id: &str, action: &str) -> bool {
+        let sql = "update russenger_user set action=?1 where facebook_user_id=?2";
+        self.conn
+            .execute(sql, params![action, user_id])
+            .await
+            .is_ok()
     }
 
     pub async fn get_action(&self, user_id: &str) -> Option<String> {
-        match &self.db {
-            DB::Mysql(pool) => {
-                let sql = "select action from russenger_user where facebook_user_id=?";
-                match sqlx::query(sql).bind(user_id).fetch_one(pool).await {
-                    Ok(row) => row.get(0),
-                    Err(_) => None,
+        let sql = "select action from russenger_user where facebook_user_id=?1";
+        match self.conn.query(sql, params![user_id]).await {
+            Ok(mut rows) => {
+                if let Ok(row) = rows.next() {
+                    row.unwrap().get(0).ok()
+                } else {
+                    None
                 }
             }
-            DB::Sqlite(pool) => {
-                let sql = "select action from russenger_user where facebook_user_id=$1";
-                match sqlx::query(sql).bind(user_id).fetch_one(pool).await {
-                    Ok(row) => row.get(0),
-                    Err(_) => None,
-                }
-            }
-            DB::Postgres(pool) => {
-                let sql = "select action from russenger_user where facebook_user_id=$1";
-                match sqlx::query(sql).bind(user_id).fetch_one(pool).await {
-                    Ok(row) => row.get(0),
-                    Err(_) => None,
-                }
-            }
-            DB::Null => None,
+            Err(_) => None,
         }
     }
 }
