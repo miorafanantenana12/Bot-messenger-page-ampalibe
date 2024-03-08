@@ -1,5 +1,6 @@
 use std::env::var;
 
+use crate::Action;
 use libsql::{params, Connection, Database};
 
 fn establish_connection() -> Connection {
@@ -43,10 +44,10 @@ impl Query {
             .is_ok()
     }
 
-    pub async fn set_action(&self, user_id: &str, action: &str) -> bool {
+    pub async fn set_action<A: Action>(&self, user_id: &str, action: A) -> bool {
         let sql = "update russenger_user set action=?1 where facebook_user_id=?2";
         self.conn
-            .execute(sql, params![action, user_id])
+            .execute(sql, params![action.path(), user_id])
             .await
             .is_ok()
     }
