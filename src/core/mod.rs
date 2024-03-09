@@ -81,15 +81,19 @@ async fn webhook_core(
     if ACTION_LOCK.lock(user).await {
         if let Some(message) = data.get_message() {
             if let Some(quick_reply) = message.get_quick_reply() {
-                let paylaod = quick_reply.get_payload();
-                run(Executable::Payload(user, &paylaod, &host, query)).await;
+                let payload = quick_reply.get_payload();
+                run(Executable::Payload(user, &payload, &host, query)).await;
             } else {
                 let text = message.get_text();
                 run(Executable::TextMessage(user, &text, &host, query)).await;
             }
         } else if let Some(postback) = data.get_postback() {
+            println!("run postback");
             let payload = postback.get_payload();
+            println!("{payload:?}");
             run(Executable::Payload(user, &payload, &host, query)).await;
+        } else {
+            println!("nothing to run")
         }
     }
     ACTION_LOCK.unlock(user).await;
