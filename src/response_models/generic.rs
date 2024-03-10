@@ -39,9 +39,9 @@ pub struct GenericElement {
 impl GenericElement {
     pub fn new(title: &str, image_url: &str, subtitle: &str, buttons: Vec<GenericButton>) -> Self {
         Self {
-            title: title.into(),
-            image_url: image_url.into(),
-            subtitle: subtitle.into(),
+            title: title.to_owned(),
+            image_url: image_url.to_owned(),
+            subtitle: subtitle.to_owned(),
             buttons,
         }
     }
@@ -82,9 +82,9 @@ impl<'g> GenericModel<'g> {
             recipient: Recipient { id: sender },
             message: GenericMessage {
                 attachment: Attachment {
-                    r#type: "template".into(),
+                    r#type: "template".to_owned(),
                     payload: GenericPayload {
-                        template_type: "generic".into(),
+                        template_type: "generic".to_owned(),
                         elements,
                     },
                 },

@@ -74,6 +74,7 @@ async fn webhook_core(
     app_state: &State<AppState>,
     request: WebRequest,
 ) -> &'static str {
+    println!("{data:#?}");
     let query = app_state.query.clone();
     let user = data.get_sender();
     let host = request.host;
@@ -88,12 +89,8 @@ async fn webhook_core(
                 run(Executable::TextMessage(user, &text, &host, query)).await;
             }
         } else if let Some(postback) = data.get_postback() {
-            println!("run postback");
             let payload = postback.get_payload();
-            println!("{payload:?}");
             run(Executable::Payload(user, &payload, &host, query)).await;
-        } else {
-            println!("nothing to run")
         }
     }
     ACTION_LOCK.unlock(user).await;
