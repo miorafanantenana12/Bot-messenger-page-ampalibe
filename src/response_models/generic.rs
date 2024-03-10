@@ -67,6 +67,7 @@ struct GenericMessage {
 
 #[derive(Debug, Serialize)]
 pub struct GenericModel<'g> {
+    messaging_type: &'g str,
     recipient: Recipient<'g>,
     message: GenericMessage,
 }
@@ -79,6 +80,7 @@ impl<'g> GenericModel<'g> {
             elements.truncate(MAX_ELEMENT);
         }
         Self {
+            messaging_type: "RESPONSE",
             recipient: Recipient { id: sender },
             message: GenericMessage {
                 attachment: Attachment {
