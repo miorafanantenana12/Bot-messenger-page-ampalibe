@@ -118,17 +118,17 @@ pub async fn run_server() {
     .to_cors()
     .expect("Failed to create CORS: Something went wrong with CORS");
 
-    // let port: i32 = var("PORT")
-    //     .unwrap_or("2424".into())
-    //     .parse()
-    //     .expect("Should Containt number");
-    // let addr = var("HOST").unwrap_or("0.0.0.0".into());
+    let port: i32 = var("PORT")
+        .unwrap_or("2424".into())
+        .parse()
+        .expect("Should Containt number");
+    let addr = var("HOST").unwrap_or("0.0.0.0".into());
 
-    // let figment = rocket::Config::figment()
-    //     .merge(("port", port))
-    //     .merge(("address", addr));
+    let figment = rocket::Config::figment()
+        .merge(("port", port))
+        .merge(("address", addr));
 
-    rocket::build()
+    rocket::custom(figment)
         .attach(cors)
         .manage(AppState::init())
         .mount("/", routes![webhook_verify, webhook_core])
