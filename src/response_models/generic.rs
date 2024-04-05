@@ -28,9 +28,9 @@ impl GenericElement {
     pub fn new(title: &str, image_url: &str, subtitle: &str, buttons: Vec<Button>) -> Self {
         let buttons: Vec<_> = buttons.iter().map(|btn| btn.to_value()).collect();
         Self {
-            title: title.into(),
-            image_url: image_url.into(),
-            subtitle: subtitle.into(),
+            title: title.to_owned(),
+            image_url: image_url.to_owned(),
+            subtitle: subtitle.to_owned(),
             buttons,
         }
     }
@@ -56,6 +56,7 @@ struct GenericMessage {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct GenericModel<'g> {
+    messaging_type: &'g str,
     recipient: Recipient<'g>,
     messaging_type: &'g str,
     message: GenericMessage,
@@ -69,6 +70,7 @@ impl<'g> GenericModel<'g> {
             elements.truncate(MAX_PAGE);
         }
         Self {
+            messaging_type: "RESPONSE",
             recipient: Recipient { id: sender },
             messaging_type: "RESPONSE",
             message: GenericMessage {

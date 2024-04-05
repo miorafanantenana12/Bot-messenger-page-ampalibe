@@ -74,6 +74,7 @@ async fn webhook_core(
     app_state: &State<AppState>,
     request: WebRequest,
 ) -> &'static str {
+    println!("{data:#?}");
     let query = app_state.query.clone();
     let user = data.get_sender();
     let host = request.host;
@@ -81,8 +82,8 @@ async fn webhook_core(
     if ACTION_LOCK.lock(user).await {
         if let Some(message) = data.get_message() {
             if let Some(quick_reply) = message.get_quick_reply() {
-                let paylaod = quick_reply.get_payload();
-                run(Executable::Payload(user, paylaod, &host, query)).await;
+                let payload = quick_reply.get_payload();
+                run(Executable::Payload(user, &payload, &host, query)).await;
             } else {
                 let text = message.get_text();
                 run(Executable::TextMessage(user, &text, &host, query)).await;
@@ -129,7 +130,7 @@ pub async fn run_server() {
 
     rocket::custom(figment)
         .attach(cors)
-        .manage(AppState::init().await)
+        .manage(AppState::init())
         .mount("/", routes![webhook_verify, webhook_core])
         .mount("/static", FileServer::from("static"))
         .register("/", catchers![page_not_found, server_panic])
@@ -139,7 +140,7 @@ pub async fn run_server() {
 }
 
 pub async fn migrate() {
-    let query = Query::new().await;
+    let query = Query::new();
     println!("Connection successful!");
     let migration_result = match query.migrate().await {
         true => "Migration successful!",

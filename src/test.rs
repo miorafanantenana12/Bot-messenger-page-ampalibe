@@ -22,7 +22,7 @@ impl Action for TestAction {
 #[rocket::async_test]
 async fn test_migrate() {
     dotenv().ok();
-    let query = Query::new().await;
+    let query = Query::new();
     let result = query.migrate().await;
     assert!(result);
 }
@@ -30,7 +30,7 @@ async fn test_migrate() {
 #[rocket::async_test]
 async fn test_create_user() {
     dotenv().ok();
-    let query = Query::new().await;
+    let query = Query::new();
     let result = query.create(USER_TEST).await;
     assert!(result);
 }
@@ -38,7 +38,7 @@ async fn test_create_user() {
 #[rocket::async_test]
 async fn test_set_action() {
     dotenv().ok();
-    let query = Query::new().await;
+    let query = Query::new();
     let result = query.set_action(USER_TEST, TestAction).await;
     assert!(result);
 }
@@ -46,7 +46,7 @@ async fn test_set_action() {
 #[rocket::async_test]
 async fn get_action() {
     dotenv().ok();
-    let query = Query::new().await;
+    let query = Query::new();
     let result = query.get_action(USER_TEST).await;
     assert_eq!(Some("TestAction".to_string()), result);
 }
