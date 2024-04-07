@@ -1,12 +1,15 @@
+use core::panic;
+
 use rocket::serde::json::Value;
 use rocket::serde::Serialize;
 
+use super::ResponseModel;
 use crate::{
     core::{
-        data::{Page, MAX_PAGE},
+        data::{Data, Page, MAX_PAGE},
         response::Res as res,
     },
-    Action, Data, ResponseModel,
+    Action,
 };
 
 use super::{
@@ -26,6 +29,9 @@ pub struct GenericElement {
 
 impl GenericElement {
     pub fn new(title: &str, image_url: &str, subtitle: &str, buttons: Vec<Button>) -> Self {
+        if buttons.len() > 3 {
+            panic!("Buttons must be three maximum")
+        }
         let buttons: Vec<_> = buttons.iter().map(|btn| btn.to_value()).collect();
         Self {
             title: title.to_owned(),
