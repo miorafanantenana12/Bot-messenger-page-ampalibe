@@ -109,9 +109,9 @@ impl GenericElement {
         }
         let buttons: Vec<_> = buttons.iter().map(|btn| btn.to_value()).collect();
         Self {
-            title: title.into(),
-            image_url: image_url.into(),
-            subtitle: subtitle.into(),
+            title: title.to_owned(),
+            image_url: image_url.to_owned(),
+            subtitle: subtitle.to_owned(),
             buttons,
         }
     }

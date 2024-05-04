@@ -1,92 +1,24 @@
-use core::panic;
 use std::env::var;
 
-use sqlx::{MySql, Pool, Postgres, Row, Sqlite};
-
 use crate::Action;
+use libsql::{params, Connection, Database};
 
-#[derive(Clone)]
-pub enum DB {
-    Mysql(Pool<MySql>),
-    Postgres(Pool<Postgres>),
-    Sqlite(Pool<Sqlite>),
-    Null,
+fn establish_connection() -> Connection {
+    let db_url = var("DATABASE").unwrap();
+    let auth_token = var("TURSO_AUTH_TOKEN").unwrap();
+    let db = Database::open_remote(db_url, auth_token).expect("Failed to open remote turso db");
+    db.connect().expect("Connection_failed")
 }
 
-type DbResult<T> = Result<T, Box<dyn std::error::Error>>;
-
-async fn establish_connection() -> DbResult<DB> {
-    let database_url = var("DATABASE").expect("Database name not found in .env file");
-    let msg = "Database connection failed";
-
-    let engine = database_url.split(':').next().ok_or(msg)?;
-
-    let pool = match engine {
-        "mysql" => Pool::connect(&database_url).await.map(DB::Mysql)?,
-        "postgres" | "postgresql" => Pool::connect(&database_url).await.map(DB::Postgres)?,
-        "sqlite" => Pool::connect(&database_url).await.map(DB::Sqlite)?,
-        _ => DB::Null,
-    };
-
-    Ok(pool)
-}
-
-macro_rules! execute_query {
-    ($pool:expr, $sql:expr, $params:expr) => {{
-        let mut query = sqlx::query($sql);
-        for parm in $params {
-            query = query.bind(parm);
-        }
-        query.execute($pool).await.is_ok()
-    }};
-}
-
-/// The `Query` struct represents a database query.
-///
-/// This struct is used to interact with the database. It contains a `db` field, which is an instance of the `DB` enum that represents the database connection.
-///
-/// # Fields
-///
-/// * `db`: The database connection. This is an instance of the `DB` enum.
-///
-/// # Methods
-///
-/// * `new`: This method creates a new `Query`. It establishes a connection to the database and returns a `Query` with the established connection.
-/// * `migrate`: This method creates a new table `russenger_user` in the database. It returns a boolean indicating whether the operation was successful.
-/// * `create`: This method inserts a new user into the `russenger_user` table. It takes a user ID as an argument and returns a boolean indicating whether the operation was successful.
-/// * `set_action`: This method updates the action of a user in the `russenger_user` table. It takes a user ID and an action as arguments and returns a boolean indicating whether the operation was successful.
-///
-/// # Examples
-///
-/// Creating a new `Query` and using it to insert a new user into the database:
-///
-/// ```rust
-/// use russenger::query::Query;
-/// use russenger::dotenv;
-///
-/// #[russenger::main]
-/// async fn main() {
-///     let query = Query::new().await;
-///     let user_created = query.create("user1").await;
-/// }
-/// ```
 #[derive(Clone)]
 pub struct Query {
-    pub db: DB,
+    pub conn: Connection,
 }
 
 impl Query {
-    /// Creates a new `Query`.
-    ///
-    /// This method establishes a connection to the database and returns a `Query` with the established connection.
-    ///
-    /// # Returns
-    ///
-    /// * `Query`: The created `Query`.
-    pub async fn new() -> Self {
-        match establish_connection().await {
-            Ok(db) => Self { db },
-            Err(err) => panic!("Can't estabilish the connection {err:?}"),
+    pub fn new() -> Self {
+        Self {
+            conn: establish_connection(),
         }
     }
 
@@ -103,13 +35,11 @@ impl Query {
                 facebook_user_id varchar(40) primary key unique,
                 action varchar(20)
             );";
-
-        let no_params: [&str; 0] = [];
-        match &self.db {
-            DB::Mysql(pool) => execute_query!(pool, sql, no_params),
-            DB::Sqlite(pool) => execute_query!(pool, sql, no_params),
-            DB::Postgres(pool) => execute_query!(pool, sql, no_params),
-            DB::Null => false,
+        if let Err(err) = self.conn.execute(sql, ()).await {
+            eprintln!("Error on create table: {err}");
+            false
+        } else {
+            true
         }
     }
 
@@ -125,22 +55,11 @@ impl Query {
     ///
     /// * `bool`: Whether the operation was successful.
     pub async fn create(&self, user_id: &str) -> bool {
-        let params = [user_id, "Main"];
-        match &self.db {
-            DB::Mysql(pool) => {
-                let sql = "insert into russenger_user (facebook_user_id, action) values (?, ?)";
-                execute_query!(pool, sql, params)
-            }
-            DB::Sqlite(pool) => {
-                let sql = "insert into russenger_user (facebook_user_id, action) values ($1, $2)";
-                execute_query!(pool, sql, params)
-            }
-            DB::Postgres(pool) => {
-                let sql = "insert into russenger_user (facebook_user_id, action) values ($1, $2)";
-                execute_query!(pool, sql, [user_id, "Main"])
-            }
-            DB::Null => false,
-        }
+        let sql = "insert into russenger_user (facebook_user_id, action) values (?1, ?2)";
+        self.conn
+            .execute(sql, params![user_id, "Main"])
+            .await
+            .is_ok()
     }
     /// Updates the action of a user in the `russenger_user` table.
     ///
@@ -178,22 +97,11 @@ impl Query {
     /// * For SQLite: `"update russenger_user set action=$1 where facebook_user_id=$2"`
     /// * For Postgres: `"update russenger_user set action=$1 where facebook_user_id=$2"`
     pub async fn set_action<A: Action>(&self, user_id: &str, action: A) -> bool {
-        let params = [action.path(), user_id.to_string()];
-        match &self.db {
-            DB::Mysql(pool) => {
-                let sql = "update russenger_user set action=? where facebook_user_id=?";
-                execute_query!(pool, sql, params)
-            }
-            DB::Sqlite(pool) => {
-                let sql = "update russenger_user set action=$1 where facebook_user_id=$2";
-                execute_query!(pool, sql, params)
-            }
-            DB::Postgres(pool) => {
-                let sql = "update russenger_user set action=$1 where facebook_user_id=$2";
-                execute_query!(pool, sql, params)
-            }
-            DB::Null => false,
-        }
+        let sql = "update russenger_user set action=?1 where facebook_user_id=?2";
+        self.conn
+            .execute(sql, params![action.path(), user_id])
+            .await
+            .is_ok()
     }
 
     /// Retrieves the action of a user from the `russenger_user` table.
@@ -216,29 +124,16 @@ impl Query {
     /// * For SQLite: `"select action from russenger_user where facebook_user_id=$1"`
     /// * For Postgres: `"select action from russenger_user where facebook_user_id=$1"`
     pub async fn get_action(&self, user_id: &str) -> Option<String> {
-        match &self.db {
-            DB::Mysql(pool) => {
-                let sql = "select action from russenger_user where facebook_user_id=?";
-                match sqlx::query(sql).bind(user_id).fetch_one(pool).await {
-                    Ok(row) => row.get(0),
-                    Err(_) => None,
+        let sql = "select action from russenger_user where facebook_user_id=?1";
+        match self.conn.query(sql, params![user_id]).await {
+            Ok(mut rows) => {
+                if let Ok(row) = rows.next() {
+                    row.unwrap().get(0).ok()
+                } else {
+                    None
                 }
             }
-            DB::Sqlite(pool) => {
-                let sql = "select action from russenger_user where facebook_user_id=$1";
-                match sqlx::query(sql).bind(user_id).fetch_one(pool).await {
-                    Ok(row) => row.get(0),
-                    Err(_) => None,
-                }
-            }
-            DB::Postgres(pool) => {
-                let sql = "select action from russenger_user where facebook_user_id=$1";
-                match sqlx::query(sql).bind(user_id).fetch_one(pool).await {
-                    Ok(row) => row.get(0),
-                    Err(_) => None,
-                }
-            }
-            DB::Null => None,
+            Err(_) => None,
         }
     }
 }
