@@ -1,7 +1,15 @@
+workspace = { members = ["example"] }
 [package]
 name = "russenger"
-version = "0.1.0"
+version = "0.1.3"
 edition = "2021"
+description = "A Rust library designed to simplify the handling of Facebook Messenger webhook responses."
+license = "Apache-2.0"
+documentation = "https://docs.rs/russenger/latest/russenger/"
+homepage = "https://github.com/j03-dev/russenger"
+repository = "https://github.com/j03-dev/russenger"
+# Author information
+authors = ["FITAHIANA Nomeniavo Joe <24nomeniavo@gmail.com>"]
 
 [lib]
 name = "russenger"
@@ -17,5 +25,4 @@ serde_json = "^1.0.107"
 lazy_static = "^1.4.0"
 rocket_cors = "0.6"
 dotenv = "^0.15.0"
-url = "^2.4.1"
 libsql = "0.2.0"
